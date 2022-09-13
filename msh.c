@@ -44,6 +44,8 @@ void queue_list(queue *q) {
     }
 }
 
+// TODO: The queue is backwards, 0th command should be oldest, 15th command should be newest
+//       Reverse order of queue
 void enqueue(queue *q, char *data) {
     // Free last item on queue if it exists so
     // that it can be overwritten in following
