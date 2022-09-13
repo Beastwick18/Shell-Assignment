@@ -40,7 +40,7 @@ void queue_list(queue *q) {
     for(size_t i = 0; i < q->size; i++) {
         if(q->data[i] == NULL)
             break;
-        printf("%ld %s\n", i+1, q->data[i]);
+        printf("%ld: %s\n", i+1, q->data[i]);
     }
 }
 
