@@ -24,6 +24,7 @@
 #define MAX_NUM_ARGUMENTS 11    // Mav shell supports up to 10 arguments, in
                                 // addition to the command
 
+// Doubly linked list node struct
 typedef struct llist_node llist_node;
 struct llist_node {
     struct llist_node *next;
@@ -31,6 +32,11 @@ struct llist_node {
     char *data;
 };
 
+// Doubly linked list struct containing
+// pointer to head and tail of list, as
+// well as vislible_length, which is 
+// how much of the list should be shown
+// when printing
 typedef struct llist llist;
 struct llist {
     struct llist_node *head;
@@ -38,12 +44,15 @@ struct llist {
     int visible_length;
 };
 
+// Creates a new linked list
 llist *new_llist(int visible_length) {
     llist *ll = (llist *) calloc(1, sizeof(llist));
     ll->visible_length = visible_length;
     return ll;
 }
 
+// Creates a new linked list node containing
+// data and pointing to prev and returns it
 llist_node *new_llist_node(llist_node *prev, char *data) {
     llist_node *node = (llist_node *) calloc(1, sizeof(llist_node));
     node->prev = prev;
@@ -51,6 +60,8 @@ llist_node *new_llist_node(llist_node *prev, char *data) {
     return node;
 }
 
+// Push back new linked list node containing
+// data onto the list
 void llist_push_back(llist *ll, char *data) {
     if(ll == NULL) {
         return;
@@ -62,8 +73,12 @@ void llist_push_back(llist *ll, char *data) {
     }
     ll->tail->next = new_llist_node(ll->tail, data);
     ll->tail = ll->tail->next;
+    // ll->tail = ll->tail->next;
 }
 
+// Starts from the tail of the list and
+// goes back "back" amount of nodes. 
+// Returns the node it lands on.
 llist_node *llist_go_back(llist_node *tail, int back) {
     if(back == 0) {
         return tail;
@@ -74,6 +89,10 @@ llist_node *llist_go_back(llist_node *tail, int back) {
     return llist_go_back(tail->prev, back-1);
 }
 
+// Recursive helper function for llist_list.
+// Traverse list index amount of nodes and 
+// print each node traversed along with its
+// index
 void llist_list_recursive(llist_node *node, int index) {
     if(node == NULL)
         return;
@@ -81,11 +100,18 @@ void llist_list_recursive(llist_node *node, int index) {
     llist_list_recursive(node->next, index+1);
 }
 
+// Prints out the contents of the list
+// of at most visible_length nodes
 void llist_list(llist *ll) {
+    // Starting from end, go back visible_length nodes
     llist_node *starting_node = llist_go_back(ll->tail, ll->visible_length-1);
     llist_list_recursive(starting_node, 1);
 }
 
+// Recursive helper function for llist_get.
+// Starting from node, traverse list index
+// amount of nodes.
+// Return last node traversed.
 char *llist_get_recursive(llist_node *node, int index) {
     if(node == NULL)
         return NULL;
@@ -94,13 +120,18 @@ char *llist_get_recursive(llist_node *node, int index) {
     return llist_get_recursive(node->next, index-1);
 }
 
+// Gets node at index starting from visible_length
+// nodes from the end (end-visible_length).
+// Returns that node.
 char *llist_get(llist *ll, int index) {
     if(index < 1 || index > ll->visible_length)
         return NULL;
+    // Starting from end, go back visible_length nodes
     llist_node *starting_node = llist_go_back(ll->tail, ll->visible_length-1);
     return llist_get_recursive(starting_node, index-1);
 }
 
+// Recursive helper function for llist_free
 void llist_free_recursive(llist_node *head) {
     if(head == NULL)
         return;
@@ -109,15 +140,19 @@ void llist_free_recursive(llist_node *head) {
     free(head);
 }
 
+// Frees all allocated memory associated
+// with llist
 void llist_free(llist *ll) {
     llist_free_recursive(ll->head);
     free(ll);
 }
 
+// Returns true if file file_name exists, false otherwise
 bool file_exists(char *file_name) {
     return access(file_name, F_OK) == 0;
 }
 
+// Return true of str only contains digit characters, false otherwise
 bool is_number(char *str) {
     int len = strnlen(str, MAX_COMMAND_SIZE);
     for(int i = 0; i < len; i++)
@@ -126,6 +161,10 @@ bool is_number(char *str) {
     return true;
 }
 
+// Search through path "location" for executable "command".
+// If found return true and set command_location equal to
+// the absolute path of the command executable. Otherwise
+// return false
 bool find_command_in_path(char *location, char *command, char *command_location) {
     char *new_path = strndup(location, MAX_COMMAND_SIZE+1);
     strncat(new_path, command, MAX_COMMAND_SIZE);
@@ -149,6 +188,9 @@ bool find_command(char *command, char *command_location) {
            find_command_in_path("/bin/", command, command_location);
 }
 
+// Spawn a new process by forking the current one,
+// exec a new executable with args, and then wait
+// on the newly spawned process to finish
 pid_t spawn_process(char *command, char **args) {
     pid_t child = fork();
     if (child == 0) {
