@@ -129,9 +129,7 @@ bool is_number(char *str) {
 bool find_command_in_path(char *location, char *command, char *command_location) {
     char *new_path = strndup(location, MAX_COMMAND_SIZE+1);
     strncat(new_path, command, MAX_COMMAND_SIZE);
-    // printf(" # Looking for %s\n", new_path);
     if(file_exists(new_path)) {
-        // printf(" # Found it!\n");
         strncpy(command_location, new_path, MAX_COMMAND_SIZE);
         free(new_path);
         return true;
@@ -214,8 +212,6 @@ int main() {
 
         char *working_string = strdup( command_string );                
         
-        // printf(" # %d %d", history->head != NULL, history->tail != NULL);
-
         // we are going to move the working_string pointer so
         // keep track of its original value so we can deallocate
         // the correct amount at the end
