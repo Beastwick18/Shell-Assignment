@@ -24,127 +24,72 @@
 #define MAX_NUM_ARGUMENTS 11    // Mav shell supports up to 10 arguments, in
                                 // addition to the command
 
-// Doubly linked list node struct
-typedef struct llist_node llist_node;
-struct llist_node {
-    struct llist_node *next;
-    struct llist_node *prev;
-    char *data;
+typedef struct arrlist arrlist;
+struct arrlist {
+    char **data;
+    int len;
+    int max_len;
 };
 
-// Doubly linked list struct containing
-// pointer to head and tail of list, as
-// well as vislible_length, which is 
-// how much of the list should be shown
-// when printing
-typedef struct llist llist;
-struct llist {
-    struct llist_node *head;
-    struct llist_node *tail;
-    int visible_length;
-};
-
-// Creates a new linked list
-llist *new_llist(int visible_length) {
-    llist *ll = (llist *) calloc(1, sizeof(llist));
-    ll->visible_length = visible_length;
-    return ll;
+// Create new array list
+arrlist *new_arrlist(int max_len) {
+    arrlist *l = (arrlist *) calloc(1, sizeof(arrlist));
+    l->data = (char **) calloc(max_len, sizeof(char *));
+    l->max_len = max_len;
+    l->len = 0;
+    
+    return l;
 }
 
-// Creates a new linked list node containing
-// data and pointing to prev and returns it
-llist_node *new_llist_node(llist_node *prev, char *data) {
-    llist_node *node = (llist_node *) calloc(1, sizeof(llist_node));
-    node->prev = prev;
-    node->data = strndup(data, MAX_COMMAND_SIZE);
-    return node;
-}
-
-// Push back new linked list node containing
-// data onto the list
-void llist_push_back(llist *ll, char *data) {
-    if(ll == NULL) {
-        return;
+// Push all elements over one and insert new element
+// at beginning of array
+void arrlist_push_front(arrlist *l, char *data) {
+    // Get rid of last element (if it exists)
+    // so that we can overwrite it with the 
+    // previous element
+    if(l->data[l->max_len-1]) {
+        free(l->data[l->max_len-1]);
+        l->data[l->max_len] = NULL;
     }
-    if(ll->head == NULL) {
-        ll->head = new_llist_node(NULL, data);
-        ll->tail = ll->head;
-        return;
+    // Shift all elements 1 place forward
+    for(int i = l->max_len-1; i >= 1; i--) {
+        l->data[i] = l->data[i-1];
     }
-    ll->tail->next = new_llist_node(ll->tail, data);
-    ll->tail = ll->tail->next;
-    // ll->tail = ll->tail->next;
+    // First position should now be able to
+    // be overwritten with new element
+    l->data[0] = strndup(data, MAX_COMMAND_SIZE);
+    // Increase current length, assuming we
+    // aren't already at the end of the array
+    if(l->len < l->max_len)
+        l->len++;
 }
 
-// Starts from the tail of the list and
-// goes back "back" amount of nodes. 
-// Returns the node it lands on.
-llist_node *llist_go_back(llist_node *tail, int back) {
-    if(back == 0) {
-        return tail;
-    }
-    if(tail->prev == NULL) {
-        return tail;
-    }
-    return llist_go_back(tail->prev, back-1);
-}
-
-// Recursive helper function for llist_list.
-// Traverse list index amount of nodes and 
-// print each node traversed along with its
-// index
-void llist_list_recursive(llist_node *node, int index) {
-    if(node == NULL)
-        return;
-    printf("%d: %s\n", index, node->data);
-    llist_list_recursive(node->next, index+1);
-}
-
-// Prints out the contents of the list
-// of at most visible_length nodes
-void llist_list(llist *ll) {
-    // Starting from end, go back visible_length nodes
-    llist_node *starting_node = llist_go_back(ll->tail, ll->visible_length-1);
-    llist_list_recursive(starting_node, 1);
-}
-
-// Recursive helper function for llist_get.
-// Starting from node, traverse list index
-// amount of nodes.
-// Return last node traversed.
-char *llist_get_recursive(llist_node *node, int index) {
-    if(node == NULL)
+// Get the element at position n in the array,
+// starting from the current length and
+// counting backwards.
+char *arrlist_get(arrlist *l, int n) {
+    if(n >= l->max_len)
         return NULL;
-    if(index == 0)
-        return node->data;
-    return llist_get_recursive(node->next, index-1);
+    return l->data[l->len - 1 - n];
 }
 
-// Gets node at index starting from visible_length
-// nodes from the end (end-visible_length).
-// Returns that node.
-char *llist_get(llist *ll, int index) {
-    if(index < 1 || index > ll->visible_length)
-        return NULL;
-    // Starting from end, go back visible_length nodes
-    llist_node *starting_node = llist_go_back(ll->tail, ll->visible_length-1);
-    return llist_get_recursive(starting_node, index-1);
+// List all elements that have been set in
+// the array, with their index being from
+// the array length to 0
+void arrlist_list(arrlist *l) {
+    for(int i = l->len-1; i >= 0; i--) {
+        printf("%d: %s\n", l->len-1-i, l->data[i]);
+    }
 }
 
-// Recursive helper function for llist_free
-void llist_free_recursive(llist_node *head) {
-    if(head == NULL)
-        return;
-    llist_free_recursive(head->next);
-    free(head->data);
-    free(head);
-}
-
-// Frees all allocated memory associated
-// with llist
-void llist_free(llist *ll) {
-    llist_free_recursive(ll->head);
-    free(ll);
+// Free all allocated memebers of the arrlist
+// struct (each element in data, data, and arrlist)
+void arrlist_free(arrlist *l) {
+    for(int i = 0; i < l->max_len; i++) {
+        free(l->data[i]);
+    }
+    free(l->data);
+    free(l);
 }
 
 // Returns true if file file_name exists, false otherwise
@@ -208,8 +153,9 @@ int main() {
     char *command_string = (char *) malloc(MAX_COMMAND_SIZE);
     char *command_location = (char *) malloc(MAX_COMMAND_SIZE);
     char *full_command = (char *) malloc(MAX_COMMAND_SIZE);
-    llist *pids = new_llist(20);
-    llist *history = new_llist(15);
+    char *pid_buffer = (char *) malloc(MAX_COMMAND_SIZE);
+    arrlist *pids = new_arrlist(20);
+    arrlist *history = new_arrlist(15);
     
     while(true) {
         // Print out the msh prompt
@@ -233,7 +179,7 @@ int main() {
                 is_number(&full_command[1])) {
                 
             int idx = atoi(&full_command[1]);
-            char *new_command_string = llist_get(history, idx);
+            char *new_command_string = arrlist_get(history, idx);
             if(new_command_string == NULL) {
                 fprintf(stderr, "Command not in history.\n");
                 continue;
@@ -279,7 +225,7 @@ int main() {
         }
         
         // Add current command to history
-        llist_push_back(history, full_command);
+        arrlist_push_front(history, full_command);
         
         // The shell will exit with status 0 if the command "quit" or "exit" is given
         if(strncmp(token[0], "exit", MAX_COMMAND_SIZE) == 0 ||
@@ -301,15 +247,14 @@ int main() {
                 }
             }
         } else if(strncmp(token[0], "listpids", MAX_COMMAND_SIZE) == 0) {
-            llist_list(pids);
+            arrlist_list(pids);
         } else if(strncmp(token[0], "history", MAX_COMMAND_SIZE) == 0) {
-            llist_list(history);
+            arrlist_list(history);
         } else if(find_command(token[0], command_location)) {
             pid_t child = spawn_process(command_location, &token[0]);
             
-            char buffer[MAX_COMMAND_SIZE] = { 0 };
-            snprintf(buffer, MAX_COMMAND_SIZE, "%d", child);
-            llist_push_back(pids, buffer);
+            snprintf(pid_buffer, MAX_COMMAND_SIZE, "%d", child);
+            arrlist_push_front(pids, pid_buffer);
         }  else {
             printf("%s: Command not found.\n", token[0]);
         }
@@ -318,10 +263,11 @@ int main() {
             free(token[i]);
         }
     }
-    llist_free(pids);
-    llist_free(history);
+    arrlist_free(pids);
+    arrlist_free(history);
     free(command_string);
     free(command_location);
     free(full_command);
+    free(pid_buffer);
     return EXIT_SUCCESS;
 }
