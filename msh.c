@@ -3,6 +3,8 @@
     ID:   1001783662
 */
 
+#define _GNU_SOURCE
+
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,16 +26,19 @@
 #define MAX_NUM_ARGUMENTS 11    // Mav shell supports up to 10 arguments, in
                                 // addition to the command
 
-typedef struct arrlist arrlist;
-struct arrlist {
-    char **data;
+// Array structure containing current length,
+// max length, and the data within the array
+typedef struct array array;
+struct array {
     int len;
     int max_len;
+    char **data;
 };
 
-// Create new array list
-arrlist *new_arrlist(int max_len) {
-    arrlist *l = (arrlist *) calloc(1, sizeof(arrlist));
+// Create new array list with array of data
+// of size max_len
+array *new_array(int max_len) {
+    array *l = (array *) calloc(1, sizeof(array));
     l->data = (char **) calloc(max_len, sizeof(char *));
     l->max_len = max_len;
     l->len = 0;
@@ -43,7 +48,7 @@ arrlist *new_arrlist(int max_len) {
 
 // Push all elements over one and insert new element
 // at beginning of array
-void arrlist_push_front(arrlist *l, char *data) {
+void array_push_front(array *l, char *data) {
     // Get rid of last element (if it exists)
     // so that we can overwrite it with the 
     // previous element
@@ -52,9 +57,9 @@ void arrlist_push_front(arrlist *l, char *data) {
         l->data[l->max_len] = NULL;
     }
     // Shift all elements 1 place forward
-    for(int i = l->max_len-1; i >= 1; i--) {
+    for(int i = l->max_len-1; i >= 1; i--)
         l->data[i] = l->data[i-1];
-    }
+    
     // First position should now be able to
     // be overwritten with new element
     l->data[0] = strndup(data, MAX_COMMAND_SIZE);
@@ -67,7 +72,7 @@ void arrlist_push_front(arrlist *l, char *data) {
 // Get the element at position n in the array,
 // starting from the current length and
 // counting backwards.
-char *arrlist_get(arrlist *l, int n) {
+char *array_get(array *l, int n) {
     if(n >= l->max_len)
         return NULL;
     return l->data[l->len - 1 - n];
@@ -76,25 +81,24 @@ char *arrlist_get(arrlist *l, int n) {
 // List all elements that have been set in
 // the array, with their index being from
 // the array length to 0
-void arrlist_list(arrlist *l) {
-    for(int i = l->len-1; i >= 0; i--) {
+void array_list(array *l) {
+    for(int i = l->len-1; i >= 0; i--)
         printf("%d: %s\n", l->len-1-i, l->data[i]);
-    }
 }
 
-// Free all allocated memebers of the arrlist
-// struct (each element in data, data, and arrlist)
-void arrlist_free(arrlist *l) {
-    for(int i = 0; i < l->max_len; i++) {
+// Free all allocated memebers of the array
+// struct (each element in data, data, and array)
+void array_free(array *l) {
+    for(int i = 0; i < l->max_len; i++)
         free(l->data[i]);
-    }
     free(l->data);
     free(l);
 }
 
-// Returns true if file file_name exists, false otherwise
-bool file_exists(char *file_name) {
-    return access(file_name, F_OK) == 0;
+// Returns true if we have permission to execute the file located
+// at file_path, false otherwise
+bool executable_exists(char *file_path) {
+    return access(file_path, R_OK) == 0;
 }
 
 // Return true of str only contains digit characters, false otherwise
@@ -113,7 +117,7 @@ bool is_number(char *str) {
 bool find_command_in_path(char *location, char *command, char *command_location) {
     char *new_path = strndup(location, MAX_COMMAND_SIZE+1);
     strncat(new_path, command, MAX_COMMAND_SIZE);
-    if(file_exists(new_path)) {
+    if(executable_exists(new_path)) {
         strncpy(command_location, new_path, MAX_COMMAND_SIZE);
         free(new_path);
         return true;
@@ -124,7 +128,7 @@ bool find_command_in_path(char *location, char *command, char *command_location)
 
 // Check for the given command in current direcotry, "/usr/local/bin/",
 // "/usr/bin", "/bin/" in that order. The found path is copied over to
-// command_location so it can be run with exec. 
+// command_location so it can be run with exec.
 // Will return true if successfully found a path, false otherwise
 bool find_command(char *command, char *command_location) {
     return find_command_in_path("", command, command_location) ||
@@ -154,8 +158,8 @@ int main() {
     char *command_location = (char *) malloc(MAX_COMMAND_SIZE);
     char *full_command = (char *) malloc(MAX_COMMAND_SIZE);
     char *pid_buffer = (char *) malloc(MAX_COMMAND_SIZE);
-    arrlist *pids = new_arrlist(20);
-    arrlist *history = new_arrlist(15);
+    array *pids = new_array(20);
+    array *history = new_array(15);
     
     while(true) {
         // Print out the msh prompt
@@ -179,12 +183,11 @@ int main() {
                 is_number(&full_command[1])) {
                 
             int idx = atoi(&full_command[1]);
-            char *new_command_string = arrlist_get(history, idx);
+            char *new_command_string = array_get(history, idx);
             if(new_command_string == NULL) {
                 fprintf(stderr, "Command not in history.\n");
                 continue;
             }
-            // printf("%s\n", new_command_string);
             strncpy(command_string, new_command_string, MAX_COMMAND_SIZE);
             strncpy(full_command, new_command_string, MAX_COMMAND_SIZE);
         }
@@ -192,13 +195,13 @@ int main() {
         /* Parse input */
         char *token[MAX_NUM_ARGUMENTS];
 
-        int token_count = 0;                                 
+        int token_count = 0;
 
         // Pointer to point to the token
         // parsed by strsep
-        char *argument_ptr;                                         
+        char *argument_ptr;
 
-        char *working_string = strdup( command_string );                
+        char *working_string = strdup( command_string );
         
         // we are going to move the working_string pointer so
         // keep track of its original value so we can deallocate
@@ -211,6 +214,7 @@ int main() {
             token[token_count] = strndup( argument_ptr, MAX_COMMAND_SIZE );
             if( strlen( token[token_count] ) == 0 )
             {
+                free(token[token_count]);
                 token[token_count] = NULL;
             }
             token_count++;
@@ -225,7 +229,7 @@ int main() {
         }
         
         // Add current command to history
-        arrlist_push_front(history, full_command);
+        array_push_front(history, full_command);
         
         // The shell will exit with status 0 if the command "quit" or "exit" is given
         if(strncmp(token[0], "exit", MAX_COMMAND_SIZE) == 0 ||
@@ -234,40 +238,53 @@ int main() {
         }
         // check for built-in "cd", change directory to the first argument given
         else if(strncmp(token[0], "cd", MAX_COMMAND_SIZE) == 0) {
-            // If more than 3 tokens (command, 1st argument, NULL) are present, 
+            // If more than 3 tokens (command, 1st argument, NULL) are present,
             // then too many arguments have been passed to cd.
             // cd will only accept 1 argument, which is the
             // directory to switch to
             if(token_count > 3) {
                 fprintf(stderr, "cd: Too many arguments\n");
-            } else {
-                int result = chdir(token[1]);
-                if(result == -1) {
-                    perror("cd");
-                }
             }
-        } else if(strncmp(token[0], "listpids", MAX_COMMAND_SIZE) == 0) {
-            arrlist_list(pids);
-        } else if(strncmp(token[0], "history", MAX_COMMAND_SIZE) == 0) {
-            arrlist_list(history);
-        } else if(find_command(token[0], command_location)) {
-            pid_t child = spawn_process(command_location, &token[0]);
+            // If we cannot change directory, show error
+            else if(chdir(token[1]) == -1) {
+                perror("cd");
+            }
+        }
+        // List pids of last 20 spawned processes
+        else if(strncmp(token[0], "listpids", MAX_COMMAND_SIZE) == 0) {
+            array_list(pids);
+        }
+        // List last 15 commands
+        else if(strncmp(token[0], "history", MAX_COMMAND_SIZE) == 0) {
+            array_list(history);
+        }
+        // Command is not built in command, look for executable
+        // and run it with given arguments. Add command to history
+        else if(find_command(token[0], command_location)) {
+            pid_t child = spawn_process(command_location, token);
             
             snprintf(pid_buffer, MAX_COMMAND_SIZE, "%d", child);
-            arrlist_push_front(pids, pid_buffer);
-        }  else {
+            array_push_front(pids, pid_buffer);
+        }
+        // Otherwise, the given command cannot be recognized.
+        // Show corresponding error message
+        else {
             printf("%s: Command not found.\n", token[0]);
         }
         
+        // Free all non-null tokens
         for(int i = 0; i < token_count; i++) {
-            free(token[i]);
+            if(token[i])
+                free(token[i]);
         }
     }
-    arrlist_free(pids);
-    arrlist_free(history);
+    
+    array_free(pids);
+    array_free(history);
     free(command_string);
     free(command_location);
     free(full_command);
     free(pid_buffer);
+    
     return EXIT_SUCCESS;
 }
