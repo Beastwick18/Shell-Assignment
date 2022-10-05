@@ -95,15 +95,15 @@ void array_free(array *l) {
     free(l);
 }
 
-// Returns true if we have permission to execute the file located
+// Returns true if we have permission to read the file located
 // at file_path, false otherwise
-bool executable_exists(char *file_path) {
+bool readable_file_exists(char *file_path) {
     return access(file_path, R_OK) == 0;
 }
 
 // Return true of str only contains digit characters, false otherwise
-bool is_number(char *str) {
-    int len = strnlen(str, MAX_COMMAND_SIZE);
+bool is_number(char *str, int max_len) {
+    int len = strnlen(str, max_len);
     for(int i = 0; i < len; i++)
         if(!isdigit(str[i]))
             return false;
@@ -117,7 +117,7 @@ bool is_number(char *str) {
 bool find_command_in_path(char *location, char *command, char *command_location) {
     char *new_path = strndup(location, MAX_COMMAND_SIZE+1);
     strncat(new_path, command, MAX_COMMAND_SIZE);
-    if(executable_exists(new_path)) {
+    if(readable_file_exists(new_path)) {
         strncpy(command_location, new_path, MAX_COMMAND_SIZE);
         free(new_path);
         return true;
@@ -140,14 +140,22 @@ bool find_command(char *command, char *command_location) {
 // Spawn a new process by forking the current one,
 // exec a new executable with args, and then wait
 // on the newly spawned process to finish
-pid_t spawn_process(char *command, char **args) {
+pid_t spawn_process(char *program, char **args) {
+    // Spawn new process by calling fork
     pid_t child = fork();
+    
+    // If child is 0, we are in the child
     if (child == 0) {
-        execvp(command, args);
+        // Load program into memory and start executing it on this process
+        execvp(program, args);
+        // We should not make it here. If we do, throw an error and exit
         perror(args[0]);
         exit(EXIT_FAILURE);
-    } else {
+    }
+    // Otherwise, we are in the parent
+    else {
         int status = 0;
+        // Wait for the child to finish before continuing execution
         waitpid(child, &status, 0);
         return child;
     }
@@ -158,7 +166,9 @@ int main() {
     char *command_location = (char *) malloc(MAX_COMMAND_SIZE);
     char *full_command = (char *) malloc(MAX_COMMAND_SIZE);
     char *pid_buffer = (char *) malloc(MAX_COMMAND_SIZE);
+    // Create array for containing pids of programs run. Only allow 20 entries
     array *pids = new_array(20);
+    // Create array for containing history of commands run. Only allow 15 entries
     array *history = new_array(15);
     
     while(true) {
@@ -180,8 +190,7 @@ int main() {
         // history so that it can be tokenized
         if(strnlen(full_command, MAX_COMMAND_SIZE) > 1 &&
                 full_command[0] == '!' &&
-                is_number(&full_command[1])) {
-                
+                is_number(&full_command[1], 2)) {
             int idx = atoi(&full_command[1]);
             char *new_command_string = array_get(history, idx);
             if(new_command_string == NULL) {
@@ -212,8 +221,7 @@ int main() {
         while ( ( (argument_ptr = strsep(&working_string, WHITESPACE ) ) != NULL) &&
                 (token_count<MAX_NUM_ARGUMENTS)) {
             token[token_count] = strndup( argument_ptr, MAX_COMMAND_SIZE );
-            if( strlen( token[token_count] ) == 0 )
-            {
+            if( strlen( token[token_count] ) == 0 ) {
                 free(token[token_count]);
                 token[token_count] = NULL;
             }
