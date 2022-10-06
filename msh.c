@@ -38,7 +38,7 @@ struct array {
 // Create new array list with array of data
 // of size max_len
 array *new_array(int max_len) {
-    array *l = (array *) calloc(1, sizeof(array));
+    array *l = (array *) malloc(sizeof(array));
     l->data = (char **) calloc(max_len, sizeof(char *));
     l->max_len = max_len;
     l->len = 0;
@@ -51,7 +51,7 @@ array *new_array(int max_len) {
 void array_push_front(array *l, char *data) {
     // Get rid of last element (if it exists)
     // so that we can overwrite it with the 
-    // previous element
+    // second to last element
     if(l->data[l->max_len-1]) {
         free(l->data[l->max_len-1]);
         l->data[l->max_len] = NULL;
@@ -70,10 +70,10 @@ void array_push_front(array *l, char *data) {
 }
 
 // Get the element at position n in the array,
-// starting from the current length and
+// starting from the last element and
 // counting backwards.
 char *array_get(array *l, int n) {
-    if(n >= l->max_len)
+    if(n < 0 || n >= l->len)
         return NULL;
     return l->data[l->len - 1 - n];
 }
@@ -83,10 +83,10 @@ char *array_get(array *l, int n) {
 // the array length to 0
 void array_list(array *l) {
     for(int i = l->len-1; i >= 0; i--)
-        printf("%d: %s\n", l->len-1-i, l->data[i]);
+        printf("%d: %s\n", l->len-i, l->data[i]);
 }
 
-// Free all allocated memebers of the array
+// Free all allocated members of the array
 // struct (each element in data, data, and array)
 void array_free(array *l) {
     for(int i = 0; i < l->max_len; i++)
@@ -95,12 +95,13 @@ void array_free(array *l) {
     free(l);
 }
 
-// Returns true if we have permission to read the file located
-// at file_path, false otherwise
-bool readable_file_exists(char *file_path) {
-    return access(file_path, R_OK) == 0;
+// Returns true if we have permission to execute
+// the file located at file_path, false otherwise
+bool executable_file_exists(char *file_path) {
+    return access(file_path, X_OK) == 0;
 }
 
+// Check if given string is an integer
 // Return true of str only contains digit characters, false otherwise
 bool is_number(char *str, int max_len) {
     int len = strnlen(str, max_len);
@@ -117,7 +118,7 @@ bool is_number(char *str, int max_len) {
 bool find_command_in_path(char *location, char *command, char *command_location) {
     char *new_path = strndup(location, MAX_COMMAND_SIZE+1);
     strncat(new_path, command, MAX_COMMAND_SIZE);
-    if(readable_file_exists(new_path)) {
+    if(executable_file_exists(new_path)) {
         strncpy(command_location, new_path, MAX_COMMAND_SIZE);
         free(new_path);
         return true;
@@ -131,7 +132,7 @@ bool find_command_in_path(char *location, char *command, char *command_location)
 // command_location so it can be run with exec.
 // Will return true if successfully found a path, false otherwise
 bool find_command(char *command, char *command_location) {
-    return find_command_in_path("", command, command_location) ||
+    return find_command_in_path("./", command, command_location) ||
            find_command_in_path("/usr/local/bin/", command, command_location) ||
            find_command_in_path("/usr/bin/", command, command_location) ||
            find_command_in_path("/bin/", command, command_location);
@@ -192,7 +193,12 @@ int main() {
                 full_command[0] == '!' &&
                 is_number(&full_command[1], 2)) {
             int idx = atoi(&full_command[1]);
-            char *new_command_string = array_get(history, idx);
+            // Get command in history at index idx-1 (idx should be in range 1..len)
+            char *new_command_string = array_get(history, idx-1);
+            // Append newline because commands entered normally to command line have one.
+            // This means number of tokens generated for this command will be the same as
+            // if it had been entered normally.
+            strncat(new_command_string, "\n", MAX_COMMAND_SIZE);
             if(new_command_string == NULL) {
                 fprintf(stderr, "Command not in history.\n");
                 continue;
@@ -202,7 +208,7 @@ int main() {
         }
         
         /* Parse input */
-        char *token[MAX_NUM_ARGUMENTS];
+        char *token[MAX_NUM_ARGUMENTS] = { 0 };
 
         int token_count = 0;
 
@@ -281,10 +287,9 @@ int main() {
         }
         
         // Free all non-null tokens
-        for(int i = 0; i < token_count; i++) {
+        for(int i = 0; i < token_count; i++)
             if(token[i])
                 free(token[i]);
-        }
     }
     
     array_free(pids);
