@@ -195,16 +195,16 @@ int main() {
             int idx = atoi(&full_command[1]);
             // Get command in history at index idx-1 (idx should be in range 1..len)
             char *new_command_string = array_get(history, idx-1);
-            // Append newline because commands entered normally to command line have one.
-            // This means number of tokens generated for this command will be the same as
-            // if it had been entered normally.
-            strncat(new_command_string, "\n", MAX_COMMAND_SIZE);
             if(new_command_string == NULL) {
                 fprintf(stderr, "Command not in history.\n");
                 continue;
             }
-            strncpy(command_string, new_command_string, MAX_COMMAND_SIZE);
             strncpy(full_command, new_command_string, MAX_COMMAND_SIZE);
+            strncpy(command_string, new_command_string, MAX_COMMAND_SIZE);
+            // Append newline because commands entered normally to command line have one.
+            // This means number of tokens generated for this command will be the same as
+            // if it had been entered normally.
+            strncat(command_string, "\n", MAX_COMMAND_SIZE);
         }
         
         /* Parse input */
